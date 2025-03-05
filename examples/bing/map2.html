@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <script type="text/javascript" src="../../lib/jquery/jquery.min.js"></script>
+    <script type="text/javascript" src="../../polymaps.js"></script>
+    <script src="https://d3js.org/d3.v6.min.js"></script>
+    <style type="text/css">
+
+@import url("../example.css");
+
+.compass .chevron, .compass .fore {
+  stroke: #666;
+}
+
+#map {
+  background: #132328;
+}
+
+#logo {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+}
+
+#copy {
+  width: 33%;
+  color: #ccc;
+  pointer-events: none;
+}
+#search-box {
+        position: absolute;
+        top: 10px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 1000;
+        background: white;
+        border-radius: 8px;
+        padding: 8px 12px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+      }
+      .location-marker circle {
+        fill: red;
+        stroke: white;
+        stroke-width: 2;
+        opacity: 0.8;
+        transition: all 0.2s ease;
+      }
+
+      .location-marker circle:hover {
+        fill: yellow;
+        stroke: red;
+        r: 10;
+      }
+    </style>
+  </head>
+  <body id="map">
+    <div id="search-box">
+      <input type="text" id="search-input1" placeholder="Search first location..." />
+      <button id="search-button1">Search place 1</button>
+      <input type="text" id="search-input2" placeholder="Search second location..." />
+      <button id="search-button2">Search place 2</button>
+    </div>
+    <script type="text/javascript">
+      var po = org.polymaps;
+
+var div = document.getElementById("map");
+
+var map = po.map()
+    .container(div.appendChild(po.svg("svg")))
+    .add(po.interact())
+    .add(po.hash());
+
+var script = document.createElement("script");
+script.setAttribute("type", "text/javascript");
+script.setAttribute("src", "http://dev.virtualearth.net"
+    + "/REST/V1/Imagery/Metadata/AerialWithLabels"
+    + "?key=AmT-ZC3HPevQq5IBJ7v8qiDUxrojNaqbW1zBsKF0oMNEs53p7Nk5RlAuAmwSG7bg"
+    + "&jsonp=callback");
+document.body.appendChild(script);
+
+function callback(data) {
+  var resourceSets = data.resourceSets;
+  for (var i = 0; i < resourceSets.length; i++) {
+    var resources = data.resourceSets[i].resources;
+    for (var j = 0; j < resources.length; j++) {
+      var resource = resources[j];
+      map.add(po.image()
+          .url(template(resource.imageUrl, resource.imageUrlSubdomains)))
+          .tileSize({x: resource.imageWidth, y: resource.imageHeight});
+    }
+  }
+  document.getElementById("logo").src = data.brandLogoUri;
+  document.getElementById("copy").appendChild(document.createTextNode(data.copyright));
+  map.add(po.compass().pan("none"));
+}
+
+function template(url, subdomains) {
+  var n = subdomains.length,
+      salt = ~~(Math.random() * n);
+
+  function quad(column, row, zoom) {
+    var key = "";
+    for (var i = 1; i <= zoom; i++) {
+      key += (((row >> zoom - i) & 1) << 1) | ((column >> zoom - i) & 1);
+    }
+    return key;
+  }
+
+  return function(c) {
+    var quadKey = quad(c.column, c.row, c.zoom),
+        server = Math.abs(salt + c.column + c.row + c.zoom) % n;
+    return url
+        .replace("{quadkey}", quadKey)
+        .replace("{subdomain}", subdomains[server]);
+  };
+}
+
+function addMarker(lat, lon, color) {
+  var g = d3.select("#map svg").append("g").attr("class", "location-marker");
+
+  g.append("circle")
+    .attr("cx", map.locationPoint({lat: lat, lon: lon}).x)
+    .attr("cy", map.locationPoint({lat: lat, lon: lon}).y)
+    .attr("r", 8)
+    .attr("fill", color);
+
+  map.on("move", function() {
+    g.select("circle")
+      .attr("cx", map.locationPoint({lat: lat, lon: lon}).x)
+      .attr("cy", map.locationPoint({lat: lat, lon: lon}).y);
+  });
+}
+
+function searchLocation(query, color) {
+  $.getJSON('https://nominatim.openstreetmap.org/search?format=json&q=' + query, function(data) {
+    if (data.length > 0) {
+      const lat = parseFloat(data[0].lat);
+      const lon = parseFloat(data[0].lon);
+      map.center({lat: lat, lon: lon}).zoom(10);
+      addMarker(lat, lon, color);
+    } else {
+      alert('Location not found!');
+    }
+  }).fail(function() {
+    alert('Failed to fetch location data.');
+  });
+}
+
+$(document).ready(function () {
+  $('#search-button1').click(function () {
+    const query = $('#search-input1').val().trim();
+    if (query) {
+      searchLocation(query, 'red');
+    } else {
+      alert('Please enter the first location.');
+    }
+  });
+
+  $('#search-button2').click(function () {
+    const query = $('#search-input2').val().trim();
+    if (query) {
+      searchLocation(query, 'blue');
+    } else {
+      alert('Please enter the second location.');
+    }
+  });
+});
+    </script>
+    <div id="copy"></div>
+    <img id="logo"/>
+  </body>
+</html>
